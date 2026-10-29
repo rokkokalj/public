@@ -100,6 +100,24 @@ header{position:sticky;top:0;z-index:1000;height:var(--hdr);display:flex;align-i
 .ab.p{background:var(--acc);color:#fff}
 .ab:hover{filter:brightness(.95)}
 
+
+/* wide views: kartice v mreži / tabela čez cel zaslon */
+body.wide .app{grid-template-columns:1fr;height:auto;min-height:calc(100vh - var(--hdr))}
+body.wide .mapwrap,body.wide .mtabs{display:none!important}
+body.wide .side{border-right:0;overflow:visible;display:flex!important}
+body.wide .filters{position:static;padding-left:max(18px,calc((100vw - 1600px)/2));padding-right:max(18px,calc((100vw - 1600px)/2))}
+body.wide .list{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:14px;max-width:1600px;margin:0 auto;width:100%}
+body.wide .group{grid-column:1/-1;margin:8px 2px 0}
+body.wide .card{grid-template-columns:1fr;grid-template-rows:120px 1fr}
+body.wide .card .img{min-height:120px}
+body.wide .card .b{padding:10px 12px;gap:6px}
+body.wide .card h3{font-size:15px}
+body.wide .meta{font-size:12.5px}
+body.wide .meta dd{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;white-space:normal}
+body.wide .acts{margin-top:auto}
+body.wide .tblwrap{max-width:1600px;margin:0 auto}
+body.wide .about{max-width:1600px;margin:0 auto}
+
 /* table */
 .tblwrap{padding:14px 18px 40px;overflow-x:auto}
 table{border-collapse:collapse;font-size:13px;min-width:900px;width:100%;background:var(--card);border-radius:12px;overflow:hidden;box-shadow:var(--shadow)}
@@ -115,6 +133,8 @@ tr:hover td{background:var(--soft)}
 .pp .in{padding:10px 12px 12px}
 .pp h4{font-size:15px;margin-bottom:2px}
 .pp .where{margin-bottom:6px}
+.tl-dark{filter:invert(1) hue-rotate(180deg) brightness(.9) contrast(.9)}
+.leaflet-control-layers{border-radius:12px!important;border:0!important;box-shadow:var(--shadow,0 2px 8px rgba(0,0,0,.2))!important;background:var(--card)!important;color:var(--txt)}
 .pin{width:30px;height:30px;border-radius:50% 50% 50% 0;transform:rotate(-45deg);display:grid;place-items:center;box-shadow:0 2px 6px rgba(0,0,0,.35);border:2px solid #fff}
 .pin span{transform:rotate(45deg);font-size:14px}
 .clu{width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--acc) 30%,transparent);transition:transform .15s}
@@ -188,7 +208,7 @@ tr:hover td{background:var(--soft)}
           <option value="ime">Po imenu</option>
           <option value="lj">Najbližje Ljubljani</option>
         </select>
-        <div class="seg"><button data-v="cards" class="on">Kartice</button><button data-v="table">Tabela</button></div>
+        <div class="seg" title="Pogled"><button data-v="cards" class="on">🗺 Zemljevid</button><button data-v="grid">▦ Kartice</button><button data-v="table">☰ Tabela</button></div>
       </div>
     </div>
     <div id="out"></div>
@@ -239,7 +259,8 @@ document.querySelectorAll("[data-f]").forEach(b=>b.onclick=()=>{tog(st.x,b.datas
 function tog(s,v){s.has(v)?s.delete(v):s.add(v);}
 $("#q").oninput=e=>{st.q=e.target.value.toLowerCase().trim();render();};
 $("#sort").onchange=e=>{st.sort=e.target.value;render();};
-document.querySelectorAll(".seg button").forEach(b=>b.onclick=()=>{document.querySelectorAll(".seg button").forEach(x=>x.classList.remove("on"));b.classList.add("on");st.view=b.dataset.v;render();});
+function setView(v){st.view=v;document.querySelectorAll(".seg button").forEach(x=>x.classList.toggle("on",x.dataset.v===v));document.body.classList.toggle("wide",v!=="cards");try{localStorage.setItem("jahanje-view",v);}catch(e){}render();if(v==="cards"&&map)setTimeout(()=>map.invalidateSize(),50);}
+document.querySelectorAll(".seg button").forEach(b=>b.onclick=()=>setView(b.dataset.v));
 document.querySelectorAll(".mtabs button").forEach(b=>b.onclick=()=>{document.querySelectorAll(".mtabs button").forEach(x=>x.classList.remove("on"));b.classList.add("on");document.body.className="view-"+b.dataset.m;if(map)setTimeout(()=>map.invalidateSize(),50);});
 
 function filtered(){
@@ -282,9 +303,9 @@ function render(){
   const r=filtered();
   $("#count").textContent=r.length+" od "+DATA.length+" ponudnikov";
   const out=$("#out");
-  if(st.view==="cards"){
+  if(st.view!=="table"){
     let h='<div class="list">',g="";
-    r.forEach(d=>{const gg=st.sort==="regija"?(CLABEL[d.drzava].split(" ").slice(1).join(" ")+" · "+d.regija):"";if(gg&&gg!==g){h+=`<div class="group">${esc(gg)}</div>`;g=gg;}h+=cardHTML(d);});
+    r.forEach(d=>{const cl=CLABEL[d.drzava].split(" ").slice(1).join(" ");const gg=st.sort==="regija"?(st.view==="grid"?cl:cl+" · "+d.regija):"";if(gg&&gg!==g){h+=`<div class="group">${esc(gg)}</div>`;g=gg;}h+=cardHTML(d);});
     out.innerHTML=h+(r.length?"":'<p class="na" style="padding:20px">Ni zadetkov. Poskusi z manj filtri.</p>')+"</div>";
   } else {
     const cols=[["ime","Ponudnik"],["regija","Regija"],["kraj","Kraj"],["oblike","Oblike"],["cene","Cena"],["namestitev","Namestitev"],["pasme","Konji"],["starost_min","Starost"],["telefon","Telefon"],["email","E-mail"],["splet","Splet"]];
@@ -303,8 +324,13 @@ function initMap(){
   map=L.map("map",{zoomControl:false,attributionControl:true}).setView([45.75,13.75],9);
   L.control.zoom({position:"bottomright"}).addTo(map);
   const dark=document.documentElement.dataset.theme==="dark"||(!document.documentElement.dataset.theme&&matchMedia("(prefers-color-scheme: dark)").matches);
-  const tl=L.tileLayer(`https://{s}.basemaps.cartocdn.com/${dark?"dark_all":"rastertiles/voyager"}/{z}/{x}/{y}{r}.png`,{maxZoom:19,attribution:'© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> · © <a href="https://carto.com/">CARTO</a>'}).addTo(map);
-  let errs=0;tl.on("tileerror",()=>{if(++errs>6)$("#mapnote").style.display="flex";});
+  const osmA='© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+  const base={
+   "Karta":L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png",{maxZoom:19,attribution:osmA,className:dark?"tl-dark":""}),
+   "Teren (topo)":L.tileLayer("https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",{maxZoom:17,attribution:osmA+' · © <a href="https://opentopomap.org">OpenTopoMap</a> (CC-BY-SA)'}),
+   "Satelit":L.tileLayer("https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",{maxZoom:19,attribution:"Tiles © Esri"})};
+  base["Karta"].addTo(map);L.control.layers(base,null,{position:"topright"}).addTo(map);
+  let errs=0;Object.values(base).forEach(t=>t.on("tileerror",()=>{if(++errs>12&&!map._loadedTile)$("#mapnote").style.display="flex";}).on("tileload",()=>{map._loadedTile=true;$("#mapnote").style.display="none";}));
   cluster=L.markerClusterGroup({showCoverageOnHover:false,maxClusterRadius:40,iconCreateFunction:c=>L.divIcon({className:"",html:`<div class="clu"><span>${c.getChildCount()}</span></div>`,iconSize:[40,40]})});map.addLayer(cluster);
 }
 function icon(d){const c=CCOL[d.drzava]||"#2d6a4f";const em=d.namestitev?"🛏":"🐴";return L.divIcon({className:"",html:`<div class="pin" style="background:${c}"><span>${em}</span></div>`,iconSize:[30,30],iconAnchor:[15,30],popupAnchor:[0,-28]});}
@@ -344,6 +370,7 @@ $("#csv").onclick=e=>{e.preventDefault();const k=["ime","drzava","regija","kraj"
   const a=document.createElement("a");a.href=URL.createObjectURL(new Blob(["﻿"+rows.join("\n")],{type:"text/csv"}));a.download="jahanje-primorska.csv";a.click();};
 
 try{initMap();}catch(e){$("#mapnote").style.display="flex";}
+try{const v=localStorage.getItem("jahanje-view");if(v&&v!=="cards"&&["grid","table"].includes(v))setView(v);}catch(e){}
 if(innerWidth>860)document.body.className="";
 render();
 })();
