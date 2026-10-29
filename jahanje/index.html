@@ -67,7 +67,7 @@ header{position:sticky;top:0;z-index:1000;height:var(--hdr);display:flex;align-i
 .chip:hover{border-color:var(--dim2)}
 .chip.on{background:var(--acc);border-color:var(--acc);color:#fff}
 .chip.c-SI.on{background:var(--acc)} .chip.c-HR.on{background:var(--hr);border-color:var(--hr)} .chip.c-IT.on{background:var(--it);border-color:var(--it)}
-.bar{display:flex;align-items:center;gap:10px;font-size:13.5px;color:var(--dim)}
+.bar{display:flex;flex-wrap:wrap;align-items:center;gap:8px 10px;font-size:13.5px;color:var(--dim)}
 .bar select{border:1px solid var(--line);background:var(--card);color:var(--txt);border-radius:10px;padding:5px 8px;font:inherit;font-size:13px}
 .bar .sp{flex:1}
 .seg{display:inline-flex;background:var(--soft);border-radius:10px;padding:3px}
@@ -87,6 +87,7 @@ header{position:sticky;top:0;z-index:1000;height:var(--hdr);display:flex;align-i
 .card .b{padding:12px 14px;display:flex;flex-direction:column;gap:7px;min-width:0}
 .card h3{font-size:16px;line-height:1.25;letter-spacing:-.005em}
 .where{font-size:12.5px;color:var(--dim)}
+.drive{font-size:13px;font-weight:650;color:var(--txt)}
 .tags{display:flex;flex-wrap:wrap;gap:4px}
 .tag{font-size:11.5px;font-weight:600;padding:2px 8px;border-radius:999px;background:var(--soft);color:var(--txt);white-space:nowrap}
 .tag.k{background:var(--acc-soft);color:var(--acc)}
@@ -203,10 +204,11 @@ tr:hover td{background:var(--soft)}
       </div>
       <div class="bar">
         <span id="count"></span><span class="sp"></span>
+        <select id="orig" aria-label="Izhodišče vožnje" title="Izhodišče za km in čas vožnje"><option value="selska">🚗 iz Selške doline</option><option value="lj">🚗 iz Ljubljane</option><option value="kranj">🚗 iz Kranja</option><option value="celje">🚗 iz Celja</option><option value="maribor">🚗 iz Maribora</option><option value="nm">🚗 iz Novega mesta</option><option value="gps">📍 iz moje lokacije</option></select>
         <select id="sort" aria-label="Razvrsti">
           <option value="regija">Po regiji</option>
           <option value="ime">Po imenu</option>
-          <option value="lj">Najbližje Ljubljani</option>
+          <option value="lj">Najkrajša vožnja</option>
         </select>
         <div class="seg" title="Pogled"><button data-v="cards" class="on">🗺 Zemljevid</button><button data-v="grid">▦ Kartice</button><button data-v="table">☰ Tabela</button></div>
       </div>
@@ -245,7 +247,11 @@ const FORMS = ["terensko","večdnevne ture","ure","šola","ponijade","western","
 const CLABEL = {SI:"🇸🇮 Slovenija", HR:"🇭🇷 Hrvaška Istra", IT:"🇮🇹 Italija"};
 const CCOL = {SI:"#2d6a4f", HR:"#2463a6", IT:"#a83246"};
 const LJ=[46.0569,14.5058];
-const st = {q:"", c:new Set(), f:new Set(), x:new Set(), sort:"regija", view:"cards", sel:null};
+const ORIG={selska:[46.205,14.21],lj:LJ,kranj:[46.2389,14.3556],celje:[46.2309,15.2604],maribor:[46.5547,15.6459],nm:[45.803,15.1689],gps:null};
+function fmtMin(m){m=Math.round(m);return m<60?m+" min":Math.floor(m/60)+" h"+(m%60?" "+(m%60)+" min":"");}
+function setDrive(){const o=st.orig;DATA.forEach(d=>{const v=d.voz&&d.voz[o];if(v&&v[0]!=null){d._km=v[0];d._min=v[1];d._est=false;}else{const c=ORIG[o];if(c&&d.lat){const a=dist(c,[d.lat,d.lon])*1.3;d._km=Math.round(a);d._min=a/70*60+10;d._est=true;}else{d._km=null;d._min=9999;}}});}
+function driveTxt(d){return d._km==null?"":`🚗 ${d._est?"~":""}${d._km} km · ${d._est?"~":""}${fmtMin(d._min)}`;}
+const st = {q:"", c:new Set(), f:new Set(), x:new Set(), sort:"regija", view:"cards", sel:null, orig:"selska"};
 const $ = s=>document.querySelector(s);
 const esc = s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const dist=(a,b)=>{const R=6371,toR=x=>x*Math.PI/180,dl=toR(b[0]-a[0]),dn=toR(b[1]-a[1]);const h=Math.sin(dl/2)**2+Math.cos(toR(a[0]))*Math.cos(toR(b[0]))*Math.sin(dn/2)**2;return 2*R*Math.asin(Math.sqrt(h));};
@@ -259,6 +265,10 @@ document.querySelectorAll("[data-f]").forEach(b=>b.onclick=()=>{tog(st.x,b.datas
 function tog(s,v){s.has(v)?s.delete(v):s.add(v);}
 $("#q").oninput=e=>{st.q=e.target.value.toLowerCase().trim();render();};
 $("#sort").onchange=e=>{st.sort=e.target.value;render();};
+try{const o=localStorage.getItem("jahanje-orig");if(o&&o in ORIG&&o!=="gps"){st.orig=o;$("#orig").value=o;}}catch(e){}
+setDrive();
+$("#orig").onchange=e=>{const v=e.target.value;if(v==="gps"){if(!navigator.geolocation){alertNote();return;}navigator.geolocation.getCurrentPosition(p=>{ORIG.gps=[p.coords.latitude,p.coords.longitude];st.orig="gps";setDrive();render();},()=>{$("#orig").value=st.orig;});return;}st.orig=v;try{localStorage.setItem("jahanje-orig",v);}catch(e){}setDrive();render();};
+function alertNote(){$("#orig").value=st.orig;}
 function setView(v){st.view=v;document.querySelectorAll(".seg button").forEach(x=>x.classList.toggle("on",x.dataset.v===v));document.body.classList.toggle("wide",v!=="cards");try{localStorage.setItem("jahanje-view",v);}catch(e){}render();if(v==="cards"&&map)setTimeout(()=>map.invalidateSize(),50);}
 document.querySelectorAll(".seg button").forEach(b=>b.onclick=()=>setView(b.dataset.v));
 document.querySelectorAll(".mtabs button").forEach(b=>b.onclick=()=>{document.querySelectorAll(".mtabs button").forEach(x=>x.classList.remove("on"));b.classList.add("on");document.body.className="view-"+b.dataset.m;if(map)setTimeout(()=>map.invalidateSize(),50);});
@@ -268,7 +278,7 @@ function filtered(){
     &&(!st.x.has("namestitev")||d.namestitev===true)&&(!st.x.has("cena")||!!d.cene)&&(!st.x.has("email")||!!d.email));
   const ord={SI:0,HR:1,IT:2};
   if(st.sort==="ime")r.sort((a,b)=>a.ime.localeCompare(b.ime,"sl"));
-  else if(st.sort==="lj")r.sort((a,b)=>a._lj-b._lj);
+  else if(st.sort==="lj")r.sort((a,b)=>a._min-b._min);
   else r.sort((a,b)=>(ord[a.drzava]-ord[b.drzava])||a.regija.localeCompare(b.regija,"sl")||a.ime.localeCompare(b.ime,"sl"));
   return r;
 }
@@ -288,7 +298,8 @@ function cardHTML(d){
   return `<article class="card${st.sel===d.id?" sel":""}" data-id="${esc(d.id)}">
    <div class="img" ${img}>${d.slika?"":'<div class="noimg">🐴</div>'}<span class="flag">${d.drzava}</span></div>
    <div class="b">
-    <div><h3>${esc(d.ime)}</h3><div class="where">${esc(d.kraj||"")}${d.regija?" · "+esc(d.regija):""}${d._lj<9999?" · "+Math.round(d._lj)+" km od LJ (zračno)":""}${d.priblizno?' · <span title="Pin je postavljen na kraj, ne na točen naslov">📍 približna lokacija</span>':""}</div></div>
+    <div><h3>${esc(d.ime)}</h3><div class="where">${esc(d.kraj||"")}${d.regija?" · "+esc(d.regija):""}${d.priblizno?' · <span title="Pin je postavljen na kraj, ne na točen naslov">📍 približna lokacija</span>':""}</div></div>
+    ${d._km!=null?`<div class="drive" title="${d._est?"Ocena po zračni razdalji":"Cestna razdalja in čas vožnje (OSRM)"}">${driveTxt(d)}</div>`:""}
     <div class="tags">${tags}${d.namestitev===true?'<span class="tag k">🛏 namestitev</span>':""}${warn(d)?`<span class="tag w">⚠ ${esc(d.starost_min||"pogoji")}</span>`:""}${d.aktivnost==="morda zaprt"?'<span class="tag x">morda ne deluje</span>':""}</div>
     <dl class="meta">
      <dt>Cena</dt><dd>${d.cene?esc(d.cene):NA}</dd>
@@ -308,9 +319,9 @@ function render(){
     r.forEach(d=>{const cl=CLABEL[d.drzava].split(" ").slice(1).join(" ");const gg=st.sort==="regija"?(st.view==="grid"?cl:cl+" · "+d.regija):"";if(gg&&gg!==g){h+=`<div class="group">${esc(gg)}</div>`;g=gg;}h+=cardHTML(d);});
     out.innerHTML=h+(r.length?"":'<p class="na" style="padding:20px">Ni zadetkov. Poskusi z manj filtri.</p>')+"</div>";
   } else {
-    const cols=[["ime","Ponudnik"],["regija","Regija"],["kraj","Kraj"],["oblike","Oblike"],["cene","Cena"],["namestitev","Namestitev"],["pasme","Konji"],["starost_min","Starost"],["telefon","Telefon"],["email","E-mail"],["splet","Splet"]];
+    const cols=[["ime","Ponudnik"],["_drive","Vožnja"],["regija","Regija"],["kraj","Kraj"],["oblike","Oblike"],["cene","Cena"],["namestitev","Namestitev"],["pasme","Konji"],["starost_min","Starost"],["telefon","Telefon"],["email","E-mail"],["splet","Splet"]];
     out.innerHTML='<div class="tblwrap"><table><thead><tr>'+cols.map(c=>`<th>${c[1]}</th>`).join("")+'</tr></thead><tbody>'+
-      r.map(d=>'<tr data-id="'+esc(d.id)+'">'+cols.map(([k])=>{let v=d[k];if(Array.isArray(v))v=v.join(", ");if(k==="namestitev")v=v===true?"da":v===false?"ne":"";if(k==="splet"&&v)return `<td><a href="${esc(v)}" target="_blank" rel="noopener">splet</a></td>`;if(k==="email"&&v)return `<td><a href="mailto:${esc(v)}">${esc(v)}</a></td>`;return `<td>${v?esc(v):'<span class="na">–</span>'}</td>`;}).join("")+'</tr>').join("")+'</tbody></table></div>';
+      r.map(d=>'<tr data-id="'+esc(d.id)+'">'+cols.map(([k])=>{let v=k==="_drive"?driveTxt(d).replace("🚗 ",""):d[k];if(Array.isArray(v))v=v.join(", ");if(k==="namestitev")v=v===true?"da":v===false?"ne":"";if(k==="splet"&&v)return `<td><a href="${esc(v)}" target="_blank" rel="noopener">splet</a></td>`;if(k==="email"&&v)return `<td><a href="mailto:${esc(v)}">${esc(v)}</a></td>`;return `<td>${v?esc(v):'<span class="na">–</span>'}</td>`;}).join("")+'</tr>').join("")+'</tbody></table></div>';
   }
   out.querySelectorAll("[data-id]").forEach(el=>el.addEventListener("click",()=>select(el.dataset.id,true)));
   out.querySelectorAll("[data-fix]").forEach(b=>b.addEventListener("click",e=>{e.stopPropagation();openModal(b.dataset.fix);}));
